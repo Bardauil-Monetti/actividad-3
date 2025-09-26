@@ -1,178 +1,145 @@
 #include <WiFi.h>
+#include <WebServer.h>
 
-// --- Configuración de Red ---
-const char* ssid = "Telecentro-da0d";    // CAMBIAR por tu red
-const char* password = "H4JTRX4NGL9L";   // CAMBIAR por tu clave
+const char* ssid = "CESJT";
+const char* password = "itisjtsmg";
 
-// --- Configuración del Servidor y Hardware ---
-WiFiServer server(80); // Puerto 80
-const int ledrojo   = 2;
-const int ledamarillo = 4;
-const int ledverde  = 14;
+WebServer server(80);
+const int rojo= 2;
+const int amarillo= 4;
+const int verde= 5;
 String modo = "Ninguno";
 
-// --- Página Web ---
-const char pagina_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Semáforo ESP32</title>
-  <style>
-    body {
-      background-color: white;
-      text-align: center;
-      font-family: sans-serif;
-    }
-    .titulo {
-      font-family: Impact;
-      font-size: 45px;
-      font-weight: bold;
-      text-decoration: underline;
-    }
-    button {
-      width: 200px;
-      height: 200px;
-      font-size: 23px;
-      margin: 10px;
-      border: 3px solid black;
-      border-radius: 100px;
-      cursor: pointer;
-      color: black;
-    }
-    .lento { background-color: red; }
-    .normal { background-color: yellow; }
-    .rapido { background-color: green; }
-    .emergencia { background-color: orange; }
-  </style>
-</head>
-<body>
-  <div class="titulo">
-    <h1>SEMÁFORO</h1>
-    <p>Seleccione el modo del semáforo:</p>
-  </div>
-  <p><a href="/lento"><button class="lento">Lento</button></a></p>
-  <p><a href="/normal"><button class="normal">Normal</button></a></p>
-  <p><a href="/rapido"><button class="rapido">Rápido</button></a></p>
-  <p><a href="/emergencia"><button class="emergencia">Emergencia</button></a></p>
-  <p><span>Modo:modo actual:xxx</span></p>
-</body>
-</html>
-)rawliteral";
+// Funciones para los modos
+void lento() {
+  modo = "Lento";
+  digitalWrite(rojo, HIGH); delay(7000);
+  digitalWrite(rojo, LOW);
+  digitalWrite(amarillo, HIGH); delay(3000);
+  digitalWrite(amarillo, LOW);
+  digitalWrite(verde, HIGH); delay(5000);
+  digitalWrite(verde, LOW);
+  server.sendHeader("Location", "/");
+  server.send(200);
+}
+
+void normal() {
+  modo = "Normal";
+  digitalWrite(rojo, HIGH); delay(4500);
+  digitalWrite(rojo, LOW);
+  digitalWrite(amarillo, HIGH); delay(2000);
+  digitalWrite(amarillo, LOW);
+  digitalWrite(verde, HIGH); delay(6500);
+  digitalWrite(verde, LOW);
+  server.sendHeader("Location", "/");
+  server.send(200);
+}
+
+void rapido() {
+  modo = "Rápido";
+  digitalWrite(rojo, HIGH); delay(2000);
+  digitalWrite(rojo, LOW);
+  digitalWrite(amarillo, HIGH); delay(1000);
+  digitalWrite(amarillo, LOW);
+  digitalWrite(verde, HIGH); delay(4000);
+  digitalWrite(verde, LOW);
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
+
+void emergencia() {
+  modo = "Emergencia";
+  for(int i=0;i<5;i++){
+    digitalWrite(rojo, HIGH);
+    digitalWrite(amarillo, HIGH);
+    delay(1000);
+    digitalWrite(rojo, LOW);
+    digitalWrite(amarillo, LOW);
+    delay(1000);
+  }
+  server.sendHeader("Location", "/");
+  server.send(303);
+}
 
 void setup() {
   Serial.begin(115200);
-  pinMode(ledrojo, OUTPUT);
-  pinMode(ledamarillo, OUTPUT);
-  pinMode(ledverde, OUTPUT);
-  digitalWrite(ledrojo, LOW);
-  digitalWrite(ledamarillo, LOW);
-  digitalWrite(ledverde, LOW);
+  pinMode(rojo, OUTPUT);
+  pinMode(amarillo, OUTPUT);
+  pinMode(verde, OUTPUT);
 
-  // --- Conexión a la red Wi-Fi ---
-  Serial.print("Conectando a ");
-  Serial.println(ssid);
   WiFi.begin(ssid, password);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-
-  Serial.println("\nConectado a Wi-Fi");
-  Serial.print("IP del servidor: http://");
+  Serial.println("\nWiFi conectado");
   Serial.println(WiFi.localIP());
+
+  // Página principal
+  server.on("/", []() {
+    String pagina = R"rawliteral(
+      <html>
+      <body>
+      <head>
+    <meta charset="utf-8">
+    <title>SEMÁFORO</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column; 
+            align-items: center;      
+        }
+        .titulo{
+            font-family: Impact;
+            font-size: 45px;
+        }
+        .boton{
+            width: 200px; 
+            height: 200px;
+            border: 3px solid black;
+            border-radius: 100px;
+            font-size: 23px;
+            justify-content: center;
+            align-items: center;
+
+        }
+        .lento{
+             background-color: #ff0000;
+        }
+        .normal{
+             background-color: #ffff00;
+        }
+        .rapido{
+             background-color: #00ff00;
+        }
+        .emergencia{
+             background-color: #ff8000;
+        }
+    </style>
+</head>
+        <h1>SEMÁFORO</h1>
+        <a href="/lento"><button>Lento</button></a>
+        <a href="/normal"><button>Normal</button></a>
+        <a href="/rapido"><button>Rápido</button></a>
+        <a href="/emergencia"><button>Emergencia</button></a>
+        <p>Modo actual: XXX</p>
+      </body>
+      </html>
+    )rawliteral";
+
+    pagina.replace("XXX", modo);
+    server.send(200, "text/html", pagina);
+  });
+
+  // Rutas de control
+  server.on("/lento", lento);
+  server.on("/normal", normal);
+  server.on("/rapido", rapido);
+  server.on("/emergencia", emergencia);
+
   server.begin();
 }
 
 void loop() {
-  WiFiClient client = server.available();
-  if (!client) return;
-
-  Serial.println("\n[Nuevo Cliente]");
-  String header = "";
-  String currentLine = "";
-
-  while (client.connected()) {
-    if (client.available()) {
-      char c = client.read();
-      header += c;
-
-      if (c == '\n') {
-        if (currentLine.length() == 0) {
-          // --- Acciones según la URL ---
-          if (header.indexOf("GET /lento") >= 0) {
-            modo = "Lento";
-            Serial.println("Modo lento activado");
-            digitalWrite(ledverde, HIGH);
-            delay(7000);
-            digitalWrite(ledverde, LOW);
-            digitalWrite(ledamarillo, HIGH);
-            delay(3000);
-            digitalWrite(ledamarillo, LOW);
-            digitalWrite(ledrojo, HIGH);
-             delay(5000);
-            digitalWrite(ledrojo, LOW);
-          } 
-          else if (header.indexOf("GET /normal") >= 0) {
-            modo = "Normal";
-            Serial.println("Modo normal activado");
-            digitalWrite(ledverde, HIGH);
-            delay(4500);
-            digitalWrite(ledverde, LOW);
-            digitalWrite(ledamarillo, HIGH);
-             delay(2000);
-            digitalWrite(ledamarillo, LOW);
-            digitalWrite(ledrojo, HIGH);
-             delay(6500);
-            digitalWrite(ledrojo, LOW);
-          } 
-          else if (header.indexOf("GET /rapido") >= 0) {
-            modo = "Rápido";
-            Serial.println("Modo rápido activado");
-            digitalWrite(ledverde, HIGH);
-            delay(2000);
-            digitalWrite(ledverde, LOW);
-            digitalWrite(ledamarillo, HIGH);
-            delay(1000);
-            digitalWrite(ledamarillo, LOW);
-            digitalWrite(ledrojo, HIGH);
-            delay(4000);
-            digitalWrite(ledrojo, LOW);
-          } 
-          else if (header.indexOf("GET /emergencia") >= 0) {
-            modo = "Emergencia";
-            Serial.println("Modo emergencia activado");
-            for(int i=0 ; i<6 ; i++){
-            digitalWrite(ledrojo, HIGH);
-            digitalWrite(ledamarillo, HIGH);
-            digitalWrite(ledverde, HIGH);
-                 delay(1000);
-            digitalWrite(ledrojo, LOW);
-            digitalWrite(ledamarillo, LOW);
-            digitalWrite(ledverde, LOW);
-          }
-        }
-          // --- Construir página reemplazando XXX ---
-          String pagina = String(pagina_html);
-          pagina.replace("XXX", "<b>" + modo + "</b>");
-
-          client.println("HTTP/1.1 200 OK");
-          client.println("Content-type:text/html");
-          client.println("Connection: close");
-          client.println();
-          client.print(pagina);
-          break;
-        } else {
-          currentLine = "";
-        }
-      } else if (c != '\r') {
-        currentLine += c;
-      }
-    }
-  }
-
-  client.stop();
-  Serial.println("[Cliente Desconectado]");
+  server.handleClient();
 }
